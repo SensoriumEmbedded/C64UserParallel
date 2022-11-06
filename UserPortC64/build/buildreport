@@ -1,0 +1,128 @@
+
+; ******** Source: source\user.asm
+     1                          
+     2                             PacketSize = 64
+     3                          
+     4                             ;mem pointers
+     5                             UserPAIO   = $dd00
+     6                             UserPBIO   = $dd01
+     7                             UserPADir  = $dd02
+     8                             UserPBDir  = $dd03
+     9                             Packet     = $1000
+    10                             
+    11                             ;Kernal routines:
+    12                             SendChar = $ffd2
+    13                             
+    14                             ;BASIC routines:
+    15                             PrintString = $ab1e
+    16                             
+    17                             ;code locations (saved to prg):
+    18                          	BasicStart = $0801
+    19                             code       = $0810 ;2064
+    20                             
+    21                             
+    22                             *=BasicStart
+    23                             ;BASIC SYS header
+    24  0801 0b0801009e            !byte $0b,$08,$01,$00,$9e  ; Line 1 SYS
+    25                             !convtab pet
+    26  0806 32303634              !tx "2064" ;dec address for sys start in text
+    27  080a 000000                !byte $00,$00,$00
+    28                             
+    29                             *=code  ; Start location for code
+    30                          
+    31                          ;Setup stuff:
+    32  0810 78                    sei
+    33  0811 a98c                  lda #<MsgWelcome
+    34  0813 a008                  ldy #>MsgWelcome
+    35  0815 201eab                jsr PrintString   
+    36                             
+    37  0818 a900                  lda #$00
+    38  081a 8d03dd                sta UserPBDir  ;set all of PB as inputs
+    39  081d ad02dd                lda UserPADir
+    40  0820 29fb                  and #%11111011 ;clear bit 2
+    41  0822 8d02dd                sta UserPADir  ;set PA.2 as input
+    42                             
+    43                          ;Main Loop:
+    44                          Main:
+    45  0825 a9a8                  lda #<MsgWaiting
+    46  0827 a008                  ldy #>MsgWaiting
+    47  0829 201eab                jsr PrintString   
+    48  082c a000                  ldy #$00   ;packet index
+    49                          lpForHigh:
+    50  082e ad00dd                lda UserPAIO
+    51  0831 2904                  and #%00000100 ;mask bit 2 (latch)
+    52  0833 d0f9                  bne lpForHigh
+    53                          
+    54                             ;grab and save byte:
+    55  0835 ad01dd                lda UserPBIO
+    56  0838 990010                sta Packet, y
+    57  083b c8                    iny
+    58  083c c040                  cpy #PacketSize
+    59  083e f00a                  beq Finish
+    60                             
+    61                          lpForLow
+    62  0840 ad00dd                lda UserPAIO
+    63  0843 2904                  and #%00000100 ;mask bit 2 (latch)
+    64  0845 f0f9                  beq lpForLow
+    65                          
+    66  0847 4c2e08                jmp lpForHigh
+    67                           
+    68                          Finish:
+    69  084a a9b4                  lda #<MsgFinished
+    70  084c a008                  ldy #>MsgFinished
+    71  084e 201eab                jsr PrintString
+    72  0851 a000                  ldy #$00   ;packet index
+    73                          printpacket:
+    74  0853 b90010                lda Packet, y
+    75  0856 206208                jsr PrintHexByte
+    76  0859 c8                    iny
+    77  085a c040                  cpy #PacketSize
+    78  085c d0f5                  bne printpacket
+    79                             ;lda #13
+    80                             ;jsr SendChar
+    81  085e 4c2508                jmp Main
+    82  0861 60                    rts ;return to BASIC
+    83                           
+    84                           
+    85                           
+    86                          PrintHexByte:
+    87                             ;Print value stored in acc in hex
+    88                             ;trashes acc
+    89  0862 48                    pha
+    90  0863 6a                    ror
+    91  0864 6a                    ror
+    92  0865 6a                    ror
+    93  0866 6a                    ror
+    94  0867 207908                jsr PrintHexNibble
+    95  086a 68                    pla
+    96  086b 207908                jsr PrintHexNibble
+    97  086e a920                  lda #' '
+    98  0870 20d2ff                jsr SendChar
+    99  0873 a920                  lda #' '
+   100  0875 20d2ff                jsr SendChar
+   101  0878 60                    rts
+   102                             
+   103                          PrintHexNibble:   
+   104  0879 290f                  and #$0f
+   105  087b c90a                  cmp #$0a
+   106  087d 1006                  bpl letter 
+   107  087f 18                    clc
+   108  0880 6930                  adc #'0'
+   109  0882 4c8808                jmp printret
+   110                          letter:
+   111  0885 18                    clc
+   112  0886 6937                  adc #'a'-$0a
+   113                          printret:
+   114  0888 20d2ff                jsr SendChar
+   115  088b 60                    rts
+   116                           
+   117                           
+   118                          ;Strings/Messages: 
+   119                          MsgWelcome:
+   120  088c 9354524156275320...   !tx 147, "trav's para-user app 0.01", 13, 0
+   121                          MsgWaiting:
+   122  08a8 0d57414954494e47...   !tx 13, "waiting...", 0
+   123                          MsgFinished:
+   124  08b4 5041434b45542052...   !tx "packet received", 13, 0
+   125                             
+   126                             

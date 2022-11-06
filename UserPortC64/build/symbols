@@ -1,0 +1,24 @@
+
+al C:dd01 .UserPBIO
+al C:0040 .PacketSize
+al C:dd03 .UserPBDir
+al C:dd02 .UserPADir
+al C:ffd2 .SendChar
+al C:0801 .BasicStart
+al C:ab1e .PrintString
+al C:dd00 .UserPAIO
+al C:0810 .code
+al C:1000 .Packet
+
+al C:0879 .PrintHexNibble
+al C:0825 .Main
+al C:0840 .lpForLow
+al C:082e .lpForHigh
+al C:0888 .printret
+al C:08a8 .MsgWaiting
+al C:0862 .PrintHexByte
+al C:0885 .letter
+al C:0853 .printpacket
+al C:088c .MsgWelcome
+al C:084a .Finish
+al C:08b4 .MsgFinished

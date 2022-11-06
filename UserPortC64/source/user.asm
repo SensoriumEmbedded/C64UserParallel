@@ -6,6 +6,8 @@
    UserPBIO   = $dd01
    UserPADir  = $dd02
    UserPBDir  = $dd03
+   UserPICR   = $dd0d
+   
    Packet     = $1000
    
    ;Kernal routines:
@@ -37,34 +39,37 @@
    lda #$00
    sta UserPBDir  ;set all of PB as inputs
    lda UserPADir
-   and #%11111011 ;clear bit 2
-   sta UserPADir  ;set PA.2 as input
+   ora #%00000100 ;set bit 2
+   sta UserPADir  ;set PA.2 as output
    
 ;Main Loop:
 Main:
    lda #<MsgWaiting
    ldy #>MsgWaiting
-   jsr PrintString   
-   ldy #$00   ;packet index
-lpForHigh:
-   lda UserPAIO
-   and #%00000100 ;mask bit 2 (latch)
-   bne lpForHigh
+   jsr PrintString   ;display waiting message
+   ldy #$00       ;reset packet index
+   
+ReadyNext:
 
+   lda UserPAIO   ;set ready output high
+   ora #%00000100 ;set bit 2 (ready)
+   sta UserPAIO
+
+   lda #%00010000 ;mask bit 4 (Flag pin)
+lpForFlag:        ;wait for high to low transition on Flag2 pin
+   bit UserPICR   ;self clearing on read
+   beq lpForFlag
+
+   lda UserPAIO   ;set ready output low
+   and #%11111011 ;clear bit 2 (not ready)
+   sta UserPAIO
    ;grab and save byte:
    lda UserPBIO
    sta Packet, y
    iny
    cpy #PacketSize
-   beq Finish
+   bne ReadyNext
    
-lpForLow
-   lda UserPAIO
-   and #%00000100 ;mask bit 2 (latch)
-   beq lpForLow
-
-   jmp lpForHigh
- 
 Finish:
    lda #<MsgFinished
    ldy #>MsgFinished
@@ -79,7 +84,7 @@ printpacket:
    ;lda #13
    ;jsr SendChar
    jmp Main
-   rts ;return to BASIC
+   ;rts ;return to BASIC
  
  
  

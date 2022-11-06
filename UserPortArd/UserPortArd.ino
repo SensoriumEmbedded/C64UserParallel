@@ -1,5 +1,8 @@
 
-#define STROBE_DA2_PIN 10   
+include "draw01.prg.h"
+
+#define STROBE_FLG_PIN 11   
+#define READY_DA2_PIN  10   
 #define UDB0_PIN        9   
 #define UDB1_PIN        8   
 #define UDB2_PIN        7   
@@ -15,8 +18,10 @@ void setup()
 {
   Serial.begin(115200);
   
-  pinMode(STROBE_DA2_PIN, OUTPUT);
-  digitalWrite(STROBE_DA2_PIN, 0);
+  pinMode(STROBE_FLG_PIN, OUTPUT);
+  digitalWrite(STROBE_FLG_PIN, 1);  //default high
+  
+  pinMode(READY_DA2_PIN, INPUT);
   
   for(uint8_t bitnum = 0; bitnum < 8; bitnum++) pinMode(UDBbitpin[bitnum], OUTPUT);
   SetParallel(0);
@@ -32,20 +37,21 @@ void loop()
   while (Serial.available()) Serial.read(); //read all
    
   for(uint8_t bytenum = 0; bytenum < 64; bytenum++) WriteByte(Count++);
-     
+  // 11/6/22:  64 bytes takes ~2.5mS, 204800bps!
+  
   Serial.println("Packet sent, ready for another");
   
 }  
   
 void WriteByte(uint8_t val)
 {
+  while (!digitalRead(READY_DA2_PIN)); //wait for ready
   SetParallel(val);
-  digitalWrite(STROBE_DA2_PIN, 0);
-  delayMicroseconds(50);
-  //delay(1);
-  digitalWrite(STROBE_DA2_PIN, 1);
-  //delay(1);
-  delayMicroseconds(50);
+  digitalWrite(STROBE_FLG_PIN, 0);
+  //duty cycle doesn't matter, but must wait for not ready
+  while (digitalRead(READY_DA2_PIN)); 
+  digitalWrite(STROBE_FLG_PIN, 1);
+
 } 
   
 void SetParallel(uint8_t val)

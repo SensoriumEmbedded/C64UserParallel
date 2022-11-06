@@ -3,131 +3,206 @@
      1                          
      2                             PacketSize = 64
      3                          
-     4                             ;mem pointers
-     5                             UserPAIO   = $dd00
-     6                             UserPBIO   = $dd01
-     7                             UserPADir  = $dd02
-     8                             UserPBDir  = $dd03
-     9                             UserPICR   = $dd0d
-    10                             
-    11                             Packet     = $1000
-    12                             
-    13                             ;Kernal routines:
-    14                             SendChar = $ffd2
-    15                             
-    16                             ;BASIC routines:
-    17                             PrintString = $ab1e
-    18                             
-    19                             ;code locations (saved to prg):
-    20                          	BasicStart = $0801
-    21                             code       = $0810 ;2064
-    22                             
-    23                             
-    24                             *=BasicStart
-    25                             ;BASIC SYS header
-    26  0801 0b0801009e            !byte $0b,$08,$01,$00,$9e  ; Line 1 SYS
-    27                             !convtab pet
-    28  0806 32303634              !tx "2064" ;dec address for sys start in text
-    29  080a 000000                !byte $00,$00,$00
-    30                             
-    31                             *=code  ; Start location for code
-    32                          
-    33                          ;Setup stuff:
-    34  0810 78                    sei
-    35  0811 a991                  lda #<MsgWelcome
-    36  0813 a008                  ldy #>MsgWelcome
-    37  0815 201eab                jsr PrintString   
-    38                             
-    39  0818 a900                  lda #$00
-    40  081a 8d03dd                sta UserPBDir  ;set all of PB as inputs
-    41  081d ad02dd                lda UserPADir
-    42  0820 0904                  ora #%00000100 ;set bit 2
-    43  0822 8d02dd                sta UserPADir  ;set PA.2 as output
-    44                             
-    45                          ;Main Loop:
-    46                          Main:
-    47  0825 a9ad                  lda #<MsgWaiting
-    48  0827 a008                  ldy #>MsgWaiting
-    49  0829 201eab                jsr PrintString   ;display waiting message
-    50  082c a000                  ldy #$00       ;reset packet index
+     4                             ;Registers:
+     5                             PtrAddrLo  = $fb
+     6                             PtrAddrHi  = $fc
+     7                             LastPage   = $fd
+     8                             UserPAIO   = $dd00
+     9                             UserPBIO   = $dd01
+    10                             UserPADir  = $dd02
+    11                             UserPBDir  = $dd03
+    12                             UserPICR   = $dd0d
+    13                                
+    14                             ;Kernal routines:
+    15                             SendChar = $ffd2
+    16                             
+    17                             ;BASIC routines:
+    18                             PrintString = $ab1e
+    19                             
+    20                             ;code locations (saved to prg):
+    21                          	;BasicStart = $0801
+    22                             ;code       = $0810 ;2064
+    23                             code       = $c000  ;49152
+    24                             
+    25                             
+    26                          ;   *=BasicStart
+    27                          ;   ;BASIC SYS header
+    28                          ;   !byte $0b,$08,$01,$00,$9e  ; Line 1 SYS
+    29                          ;   !convtab pet
+    30                          ;   !tx "2064" ;dec address for sys start in text
+    31                          ;   !byte $00,$00,$00
+    32                             
+    33                             *=code  ; Start location for code
+    34                          
+    35                          ;Setup stuff:
+    36  c000 78                    sei
+    37  c001 a9d4                  lda #<MsgWelcome
+    38  c003 a0c0                  ldy #>MsgWelcome
+    39  c005 201eab                jsr PrintString   
+    40                             
+    41  c008 a900                  lda #$00
+    42  c00a 8d03dd                sta UserPBDir  ;set all of PB as inputs
+    43                             
+    44  c00d ad02dd                lda UserPADir
+    45  c010 0904                  ora #%00000100 ;set bit 2
+    46  c012 8d02dd                sta UserPADir  ;set PA.2 as output
+    47  c015 ad00dd                lda UserPAIO   
+    48  c018 29fb                  and #%11111011 ;clear bit 2 (not ready)
+    49  c01a 8d00dd                sta UserPAIO   ;set ready output low
+    50                          
     51                             
-    52                          ReadyNext:
-    53                          
-    54  082e ad00dd                lda UserPAIO   ;set ready output high
-    55  0831 0904                  ora #%00000100 ;set bit 2 (ready)
-    56  0833 8d00dd                sta UserPAIO
-    57                          
-    58  0836 a910                  lda #%00010000 ;mask bit 4 (Flag pin)
-    59                          lpForFlag:        ;wait for high to low transition on Flag2 pin
-    60  0838 2c0ddd                bit UserPICR   ;self clearing on read
-    61  083b f0fb                  beq lpForFlag
-    62                          
-    63  083d ad00dd                lda UserPAIO   ;set ready output low
-    64  0840 29fb                  and #%11111011 ;clear bit 2 (not ready)
-    65  0842 8d00dd                sta UserPAIO
-    66                             ;grab and save byte:
-    67  0845 ad01dd                lda UserPBIO
-    68  0848 990010                sta Packet, y
-    69  084b c8                    iny
-    70  084c c040                  cpy #PacketSize
-    71  084e d0de                  bne ReadyNext
-    72                             
-    73                          Finish:
-    74  0850 a9b9                  lda #<MsgFinished
-    75  0852 a008                  ldy #>MsgFinished
-    76  0854 201eab                jsr PrintString
-    77  0857 a000                  ldy #$00   ;packet index
-    78                          printpacket:
-    79  0859 b90010                lda Packet, y
-    80  085c 206708                jsr PrintHexByte
-    81  085f c8                    iny
-    82  0860 c040                  cpy #PacketSize
-    83  0862 d0f5                  bne printpacket
-    84                             ;lda #13
-    85                             ;jsr SendChar
-    86  0864 4c2508                jmp Main
-    87                             ;rts ;return to BASIC
-    88                           
-    89                           
-    90                           
-    91                          PrintHexByte:
-    92                             ;Print value stored in acc in hex
-    93                             ;trashes acc
-    94  0867 48                    pha
-    95  0868 6a                    ror
-    96  0869 6a                    ror
-    97  086a 6a                    ror
-    98  086b 6a                    ror
-    99  086c 207e08                jsr PrintHexNibble
-   100  086f 68                    pla
-   101  0870 207e08                jsr PrintHexNibble
-   102  0873 a920                  lda #' '
-   103  0875 20d2ff                jsr SendChar
-   104  0878 a920                  lda #' '
-   105  087a 20d2ff                jsr SendChar
-   106  087d 60                    rts
-   107                             
-   108                          PrintHexNibble:   
-   109  087e 290f                  and #$0f
-   110  0880 c90a                  cmp #$0a
-   111  0882 1006                  bpl letter 
-   112  0884 18                    clc
-   113  0885 6930                  adc #'0'
-   114  0887 4c8d08                jmp printret
-   115                          letter:
-   116  088a 18                    clc
-   117  088b 6937                  adc #'a'-$0a
-   118                          printret:
-   119  088d 20d2ff                jsr SendChar
-   120  0890 60                    rts
-   121                           
-   122                           
-   123                          ;Strings/Messages: 
-   124                          MsgWelcome:
-   125  0891 9354524156275320...   !tx 147, "trav's para-user app 0.01", 13, 0
-   126                          MsgWaiting:
-   127  08ad 0d57414954494e47...   !tx 13, "waiting...", 0
-   128                          MsgFinished:
-   129  08b9 5041434b45542052...   !tx "packet received", 13, 0
-   130                             
-   131                             
+    52                          ;Main routine:
+    53                          Main:
+    54  c01d a9f2                  lda #<MsgWaiting
+    55  c01f a0c0                  ldy #>MsgWaiting
+    56  c021 201eab                jsr PrintString   ;display waiting message
+    57                             
+    58  c024 2087c0                jsr ReceiveByte
+    59  c027 c9b9                  cmp #$B9  ;magic number to start
+    60  c029 f005                  beq cont1
+    61  c02b a901                  lda #$01  ;unexpected start byte
+    62  c02d 4c75c0                jmp ErrOut
+    63                          cont1:   
+    64                             
+    65  c030 a9fe                  lda #<MsgReceiving
+    66  c032 a0c0                  ldy #>MsgReceiving
+    67  c034 201eab                jsr PrintString   ;display receiving message
+    68                             
+    69  c037 2087c0                jsr ReceiveByte
+    70  c03a 85fb                  sta PtrAddrLo
+    71  c03c c901                  cmp #$01  ;StartAddr Low
+    72  c03e f005                  beq cont2
+    73  c040 a902                  lda #$02  ;StartAddr Low
+    74  c042 4c75c0                jmp ErrOut
+    75                          cont2: 
+    76                            
+    77  c045 2087c0                jsr ReceiveByte
+    78  c048 85fc                  sta PtrAddrHi
+    79  c04a c908                  cmp #$08  ;StartAddr High
+    80  c04c f005                  beq cont3
+    81  c04e a903                  lda #$03  ;StartAddr High
+    82  c050 4c75c0                jmp ErrOut
+    83                          cont3:   
+    84                          
+    85  c053 2087c0                jsr ReceiveByte  ;size in 256 byte pages
+    86  c056 18                    clc
+    87  c057 65fc                  adc PtrAddrHi
+    88  c059 85fd                  sta LastPage   ;store last page hi addr
+    89                            
+    90  c05b a000                  ldy #$00       ;reset packet index
+    91                          ReadyNext:
+    92  c05d 2087c0                jsr ReceiveByte
+    93  c060 91fb                  sta (PtrAddrLo), y   ;save byte in mem
+    94  c062 c8                    iny
+    95  c063 d0f8                  bne ReadyNext
+    96                             
+    97  c065 e6fc                  inc PtrAddrHi
+    98  c067 a5fc                  lda PtrAddrHi
+    99  c069 c5fd                  cmp LastPage
+   100  c06b d0f0                  bne ReadyNext
+   101                             
+   102                          Finish:
+   103  c06d a90c                  lda #<MsgFinished
+   104  c06f a0c1                  ldy #>MsgFinished
+   105  c071 201eab                jsr PrintString
+   106                             
+   107                          ;   ldy #$00   ;packet index
+   108                          ;printpacket:
+   109                          ;   lda Packet, y
+   110                          ;   jsr PrintHexByte
+   111                          ;   iny
+   112                          ;   cpy #PacketSize
+   113                          ;   bne printpacket
+   114                             ;lda #13
+   115                             ;jsr SendChar
+   116                             ;jmp Main
+   117                          
+   118  c074 60                    rts ;return to BASIC
+   119                             
+   120                             
+   121                             
+   122                          ErrOut:   
+   123                             ;ErrNum stored in acc
+   124  c075 48                    pha
+   125  c076 a9cc                  lda #<MsgError
+   126  c078 a0c0                  ldy #>MsgError
+   127  c07a 201eab                jsr PrintString   
+   128  c07d 68                    pla
+   129  c07e 20a2c0                jsr PrintHexByte
+   130  c081 a90d                  lda #13
+   131  c083 20d2ff                jsr SendChar
+   132  c086 60                    rts ;return to BASIC
+   133                           
+   134                           
+   135                           
+   136                          ;   *********************** Subroutines *********************** 
+   137                           
+   138                          ReceiveByte:
+   139                             ;Receives one byte from parallel port, then back to not ready
+   140                             ;returns value in acc
+   141                             ; X and Y not touched
+   142  c087 ad00dd                lda UserPAIO   
+   143  c08a 0904                  ora #%00000100 ;set bit 2 (ready)
+   144  c08c 8d00dd                sta UserPAIO   ;set ready output high
+   145                          
+   146  c08f a910                  lda #%00010000 ;mask bit 4 (Flag pin)
+   147                          lpForFlag:        ;wait for high to low transition on Flag2 pin
+   148  c091 2c0ddd                bit UserPICR   ;self clearing on read
+   149  c094 f0fb                  beq lpForFlag
+   150                          
+   151  c096 ad00dd                lda UserPAIO   
+   152  c099 29fb                  and #%11111011 ;clear bit 2 (not ready)
+   153  c09b 8d00dd                sta UserPAIO   ;set ready output low
+   154                             
+   155  c09e ad01dd                lda UserPBIO  ;grab byte
+   156  c0a1 60                    rts
+   157                           
+   158                          PrintHexByte:
+   159                             ;Print byte value stored in acc in hex
+   160                             ;  2 chars plus 2 spaces
+   161                             ;trashes acc
+   162  c0a2 48                    pha
+   163  c0a3 6a                    ror
+   164  c0a4 6a                    ror
+   165  c0a5 6a                    ror
+   166  c0a6 6a                    ror
+   167  c0a7 20b9c0                jsr PrintHexNibble
+   168  c0aa 68                    pla
+   169  c0ab 20b9c0                jsr PrintHexNibble
+   170  c0ae a920                  lda #' '
+   171  c0b0 20d2ff                jsr SendChar
+   172  c0b3 a920                  lda #' '
+   173  c0b5 20d2ff                jsr SendChar
+   174  c0b8 60                    rts
+   175                             
+   176                          PrintHexNibble:   
+   177                             ;Print value stored in lower nible acc in hex
+   178                             ;trashes acc
+   179  c0b9 290f                  and #$0f
+   180  c0bb c90a                  cmp #$0a
+   181  c0bd 1006                  bpl letter 
+   182  c0bf 18                    clc
+   183  c0c0 6930                  adc #'0'
+   184  c0c2 4cc8c0                jmp printret
+   185                          letter:
+   186  c0c5 18                    clc
+   187  c0c6 6957                  adc #'a'-$0a
+   188                          printret:
+   189  c0c8 20d2ff                jsr SendChar
+   190  c0cb 60                    rts
+   191                           
+   192                          ;   *********************** Strings/Messages *********************** 
+   193                          
+   194                          MsgError:
+   195                             !convtab pet
+   196  c0cc c552524f52202300      !tx "Error #", 0
+   197                          MsgWelcome:       ;clr screen, wht char, lower case
+   198  c0d4 93050ed452415627...   !tx 147, 5, 14, "Trav's para-user app 0.02", 13, 0
+   199                          MsgWaiting:
+   200  c0f2 d7414954494e472e...   !tx "Waiting...", 13, 0
+   201                          MsgReceiving:
+   202  c0fe d24543454956494e...   !tx "Receiving...", 13, 0
+   203                          MsgFinished:
+   204  c10c c6494e4953484544...   !tx "Finished", 13, 0
+   205                             
+   206                             

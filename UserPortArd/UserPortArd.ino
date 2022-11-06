@@ -1,5 +1,7 @@
 
-include "draw01.prg.h"
+//#include "draw01.prg.h"
+#include "ember_head.prg.h"
+//#include "disp_fract.prg.h"
 
 #define STROBE_FLG_PIN 11   
 #define READY_DA2_PIN  10   
@@ -18,8 +20,8 @@ void setup()
 {
   Serial.begin(115200);
   
-  pinMode(STROBE_FLG_PIN, OUTPUT);
-  digitalWrite(STROBE_FLG_PIN, 1);  //default high
+  pinMode(STROBE_FLG_PIN, INPUT);  //open collector (pulled up in C64)
+  digitalWrite(STROBE_FLG_PIN, 0);  //low when output
   
   pinMode(READY_DA2_PIN, INPUT);
   
@@ -31,26 +33,38 @@ void setup()
   
 void loop()
 {
-  static uint8_t Count = 0;
-  
-  while (!Serial.available()); //wait for char
   while (Serial.available()) Serial.read(); //read all
+  Serial.println("\nReady to send...");
+  while (!Serial.available()); //wait for char
    
-  for(uint8_t bytenum = 0; bytenum < 64; bytenum++) WriteByte(Count++);
+  uint32_t StartMillis = millis();
+
+  WriteByte(0xb9); //magic number to start
+  WriteByte(0x01); //StartAddr Low
+  WriteByte(0x08); //StartAddr High
+  
+  uint8_t NumPages = sizeof(file_prg)/256+1;
+  WriteByte(NumPages);
+  Serial.printf("Sending %d bytes\n", NumPages*256);
+  
+  uint16_t bytenum = 0;
+  while(bytenum < sizeof(file_prg)) WriteByte(file_prg[bytenum++]);
+  
+  while(bytenum++ < NumPages *256) WriteByte(0); //pad with zeros
   // 11/6/22:  64 bytes takes ~2.5mS, 204800bps!
   
-  Serial.println("Packet sent, ready for another");
-  
+  Serial.printf("File Sent, took %dmS\n", millis() - StartMillis);
 }  
   
 void WriteByte(uint8_t val)
 {
   while (!digitalRead(READY_DA2_PIN)); //wait for ready
   SetParallel(val);
-  digitalWrite(STROBE_FLG_PIN, 0);
-  //duty cycle doesn't matter, but must wait for not ready
-  while (digitalRead(READY_DA2_PIN)); 
-  digitalWrite(STROBE_FLG_PIN, 1);
+  pinMode(STROBE_FLG_PIN, OUTPUT);  //drive low open collector
+  //digitalWrite(STROBE_FLG_PIN, 0);
+  while (digitalRead(READY_DA2_PIN)); //wait for not ready
+  pinMode(STROBE_FLG_PIN, INPUT);  //float high open collector
+  //digitalWrite(STROBE_FLG_PIN, 1);
 
 } 
   

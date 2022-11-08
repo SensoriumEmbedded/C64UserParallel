@@ -17,8 +17,9 @@ SET compilerReport=buildreport
 SET compilerSymbols=symbols
 SET compilerArgs=-r %buildPath%\%compilerReport% --vicelabels %buildPath%\%compilerSymbols% --msvc --color --format cbm -v3 --outfile
 
-rem SET cruncherPath=%toolPath%\C64-devkit\cruncher\win32
-rem SET cruncher=pucrunch.exe
+SET cruncherPath=%toolPath%\C64-devkit\cruncher\win32
+SET cruncher=pucrunch.exe
+SET cruncherArgs=-x$c000 -c64 -g55 -fshort
 rem SET cruncherArgs=-x$0801 -c64 -g55 -fshort
 
 SET emulatorPath=%toolPath%\Emulation\GTK3VICE-3.6.1-win64\bin
@@ -51,8 +52,8 @@ rem %genosinePath%\%genosine% %table4Args% > %tablesPath%\%table4%
 echo ***Compile...
 %compilerPath%\%compiler% %compilerArgs% %buildPath%\%build% %sourcePath%\%source%
 
-rem echo ***Crunch...
-rem %cruncherPath%\%cruncher% %cruncherArgs% %buildPath%\%build% %buildPath%\%build%
+echo ***Crunch...
+%cruncherPath%\%cruncher% %cruncherArgs% %buildPath%\%build% %buildPath%\%build%
 
 echo ***Emulate...
 rem @echo on

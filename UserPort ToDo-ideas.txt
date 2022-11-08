@@ -1,0 +1,30 @@
+
+C# Code:
+* Serial app to select/send prg file
+
+
+Arduoino Code:
+* send start address from header file
+* Timeouts!
+* Checksums- Speed impact? Needed?
+
+C64 code:
+* implement save option 
+* Timeouts!
+* Checksums- Speed impact? Needed?
+** Burn to cart ROM to run easily
+
+Hardware:
+* compact it, PCB?
+* Power from C64, separate from USB power
+* Change to Pro Mini? (cheaper, more common, 5v native)
+     Compare max USB x-fer rates
+     Assuming parallel about the same?
+
+For reference:
+1541 transfer rate: 300 byte/s, raised to 10 Kbyte/s with floppy speeders.
+Currently at ~16 Kbyte/s as of 11/6/22
+
+
+
+

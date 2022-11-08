@@ -1,4 +1,6 @@
 
+   !convtab pet   ;key in and text out conv to PetSCII throughout
+ 
    PacketSize = 64
 
    ;Registers:
@@ -13,6 +15,8 @@
       
    ;Kernal routines:
    SendChar = $ffd2
+   ScanKey  = $ff9f ;SCNKEY
+   GetIn    = $ffe4 ;GETIN
    
    ;BASIC routines:
    PrintString = $ab1e
@@ -26,7 +30,6 @@
 ;   *=BasicStart
 ;   ;BASIC SYS header
 ;   !byte $0b,$08,$01,$00,$9e  ; Line 1 SYS
-;   !convtab pet
 ;   !tx "2064" ;dec address for sys start in text
 ;   !byte $00,$00,$00
    
@@ -47,8 +50,7 @@
    lda UserPAIO   
    and #%11111011 ;clear bit 2 (not ready)
    sta UserPAIO   ;set ready output low
-
-   
+  
 ;Main routine:
 Main:
    lda #<MsgWaiting
@@ -66,9 +68,12 @@ cont1:
    ldy #>MsgReceiving
    jsr PrintString   ;display receiving message
    
+   jsr ReceiveByte  ;size in 256 byte pages
+   sta LastPage     ;store last page hi addr
+  
    jsr ReceiveByte
    sta PtrAddrLo
-   cmp #$01  ;StartAddr Low
+   cmp #$01  ;StartAddr Low, forcing $0801
    beq cont2
    lda #$02  ;StartAddr Low
    jmp ErrOut
@@ -76,17 +81,16 @@ cont2:
   
    jsr ReceiveByte
    sta PtrAddrHi
-   cmp #$08  ;StartAddr High
+   cmp #$08  ;StartAddr High, forcing $0801
    beq cont3
    lda #$03  ;StartAddr High
    jmp ErrOut
 cont3:   
 
-   jsr ReceiveByte  ;size in 256 byte pages
    clc
-   adc PtrAddrHi
-   sta LastPage   ;store last page hi addr
-  
+   adc LastPage     ;add start address page to size 
+   sta LastPage     ;store last page hi addr
+
    ldy #$00       ;reset packet index
 ReadyNext:
    jsr ReceiveByte
@@ -99,25 +103,68 @@ ReadyNext:
    cmp LastPage
    bne ReadyNext
    
-Finish:
    lda #<MsgFinished
    ldy #>MsgFinished
    jsr PrintString
-   
-;   ldy #$00   ;packet index
-;printpacket:
-;   lda Packet, y
-;   jsr PrintHexByte
-;   iny
-;   cpy #PacketSize
-;   bne printpacket
-   ;lda #13
-   ;jsr SendChar
-   ;jmp Main
 
+;   *********  end options, What now?   ***********
+EndOption:
+   lda #<MsgOptions
+   ldy #>MsgOptions
+   jsr PrintString
+
+WaitForKey:     ;"Select: Run, Save, rEstart, Disp, or Quit"
+   jsr ScanKey  ; (since interrupts are disabled)
+   jsr GetIn    ;
+   beq WaitForKey
+
+   cmp #'e'  
+   beq Main
+   
+   cmp #'r'  
+   bne notR
+   ;could load keyboard buffer with "run":  https://retro64.altervista.org/blog/commodore-64-keyboard-buffer-tricks-deleting-and-creating-basic-lines-from-basic/
+   lda #'r'
+   sta $0277  ;kbd buff 0
+   lda #'u'
+   sta $0278 ;kbd buff 1
+   lda #'n'
+   sta $0279  ;kbd buff 2
+   lda #13
+   sta $027a  ;kbd buff 3
+   lda #4
+   sta $C6  ;# chars in kbd buff (10 max)
    rts ;return to BASIC
+ notR:
+
+   cmp #'q'  
+   bne notQ
+   rts ;return to BASIC
+notQ:
+
+   cmp #'d'  
+   bne notD
+   ldy #$00   ;index
+DispLoop:     ;first 100 bytes from $0801
+   lda $0801, y
+   jsr PrintHexByte
+   iny
+   cpy #100
+   bne DispLoop
+   lda #13
+   jsr SendChar
+   jmp EndOption
+notD:
+
+   cmp #'s'  
+   bne notS
+   ;save not yet implemented...
    
+notS:
+
+jmp EndOption   ; try again...  
    
+
    
 ErrOut:   
    ;ErrNum stored in acc
@@ -129,7 +176,7 @@ ErrOut:
    jsr PrintHexByte
    lda #13
    jsr SendChar
-   rts ;return to BASIC
+   jmp EndOption
  
  
  
@@ -192,16 +239,17 @@ printret:
 ;   *********************** Strings/Messages *********************** 
 
 MsgError:
-   !convtab pet
    !tx "Error #", 0
 MsgWelcome:       ;clr screen, wht char, lower case
-   !tx 147, 5, 14, "Trav's para-user app 0.02", 13, 0
+   !tx 147, 5, 14, "Trav's para-user app 0.03", 13, 0
 MsgWaiting:
-   !tx "Waiting...", 13, 0
+   !tx "Waiting for host...", 13, 0
 MsgReceiving:
    !tx "Receiving...", 13, 0
 MsgFinished:
-   !tx "Finished", 13, 0
+   !tx "Finished!", 13, 0
+MsgOptions:
+   !tx 13, "Run, Save, rEstart, Disp, or Quit...", 13, 0
    
    
    

@@ -1,7 +1,8 @@
 
 //#include "draw01.prg.h"
-#include "ember_head.prg.h"
+//#include "ember_head.prg.h"
 //#include "disp_fract.prg.h"
+#include "user3n.prg.h"
 
 #define STROBE_FLG_PIN 11   
 #define READY_DA2_PIN  10   
@@ -40,8 +41,8 @@ void loop()
   uint32_t StartMillis = millis();
 
   WriteByte(0xb9); //magic number to start
-  WriteByte(0x01); //StartAddr Low
-  WriteByte(0x08); //StartAddr High
+  //WriteByte(0x01); //StartAddr Low   |  (leave it to the file, 
+  //WriteByte(0x08); //StartAddr High  |    rec will fail if wrong address)
   
   uint8_t NumPages = sizeof(file_prg)/256+1;
   WriteByte(NumPages);
@@ -50,7 +51,7 @@ void loop()
   uint16_t bytenum = 0;
   while(bytenum < sizeof(file_prg)) WriteByte(file_prg[bytenum++]);
   
-  while(bytenum++ < NumPages *256) WriteByte(0); //pad with zeros
+  while(bytenum++ < NumPages *256 +2) WriteByte(0); //pad with zeros, 2 extra bytes to make up for address at start
   // 11/6/22:  64 bytes takes ~2.5mS, 204800bps!
   
   Serial.printf("File Sent, took %dmS\n", millis() - StartMillis);

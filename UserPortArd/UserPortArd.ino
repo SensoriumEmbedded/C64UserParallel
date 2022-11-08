@@ -1,9 +1,4 @@
 
-//#include "draw01.prg.h"
-//#include "ember_head.prg.h"
-//#include "disp_fract.prg.h"
-#include "user3n.prg.h"
-
 #define STROBE_FLG_PIN 11   
 #define READY_DA2_PIN  10   
 #define UDB0_PIN        9   
@@ -26,51 +21,82 @@ void setup()
   
   pinMode(READY_DA2_PIN, INPUT);
   
-  for(uint8_t bitnum = 0; bitnum < 8; bitnum++) pinMode(UDBbitpin[bitnum], OUTPUT);
-  SetParallel(0);
+  for(uint8_t bitnum = 0; bitnum < 8; bitnum++) 
+  {
+     pinMode(UDBbitpin[bitnum], OUTPUT);
+     digitalWrite(UDBbitpin[bitnum], 0);
+  }
 
-  Serial.println("\n\nTrav's C64 User Port Project");
+  Serial.print("Trav's PC->C64 File Transfer\n");
 } 
   
 void loop()
 {
-  while (Serial.available()) Serial.read(); //read all
-  Serial.println("\nReady to send...");
-  while (!Serial.available()); //wait for char
-   
-  uint32_t StartMillis = millis();
-
-  WriteByte(0xb9); //magic number to start
-  //WriteByte(0x01); //StartAddr Low   |  (leave it to the file, 
-  //WriteByte(0x08); //StartAddr High  |    rec will fail if wrong address)
+  uint8_t bytein;
   
-  uint8_t NumPages = sizeof(file_prg)/256+1;
-  WriteByte(NumPages);
-  Serial.printf("Sending %d bytes\n", NumPages*256);
+  do 
+  {
+     Serial.print("\nClearing buffer\n");
+     uint32_t BytesCleared = 0;
+     while (SerialAvailabeTimeout(false)) //read all until timeout
+     {
+        Serial.read(); 
+        BytesCleared++;
+     }
+     if (BytesCleared) Serial.printf("%d bytes cleared\n", BytesCleared);
+     Serial.print("Waiting for Host...\n");
+     while (!Serial.available()); //wait for start token (no timeout)
+     bytein = Serial.read();
+  } while (bytein != 0x64);   //start token
   
-  uint16_t bytenum = 0;
-  while(bytenum < sizeof(file_prg)) WriteByte(file_prg[bytenum++]);
-  
-  while(bytenum++ < NumPages *256 +2) WriteByte(0); //pad with zeros, 2 extra bytes to make up for address at start
-  // 11/6/22:  64 bytes takes ~2.5mS, 204800bps!
-  
-  Serial.printf("File Sent, took %dmS\n", millis() - StartMillis);
+  TransferFile();
 }  
   
 void WriteByte(uint8_t val)
 {
   while (!digitalRead(READY_DA2_PIN)); //wait for ready
-  SetParallel(val);
+  for(uint8_t bitnum = 0; bitnum < 8; bitnum++) digitalWrite(UDBbitpin[bitnum], val & (1<<bitnum));  //place byte on output
   pinMode(STROBE_FLG_PIN, OUTPUT);  //drive low open collector
-  //digitalWrite(STROBE_FLG_PIN, 0);
   while (digitalRead(READY_DA2_PIN)); //wait for not ready
   pinMode(STROBE_FLG_PIN, INPUT);  //float high open collector
-  //digitalWrite(STROBE_FLG_PIN, 1);
-
 } 
-  
-void SetParallel(uint8_t val)
+
+bool SerialAvailabeTimeout(bool DispTOMsg)
 {
-  for(uint8_t bitnum = 0; bitnum < 8; bitnum++) digitalWrite(UDBbitpin[bitnum], val & (1<<bitnum));
+  uint32_t StartTOMillis = millis();
+  
+  while(!Serial.available() && (millis() - StartTOMillis) < 500); // timeout loop
+  if (Serial.available()) return(true);
+  if (DispTOMsg) Serial.print("Timeout!\n");  
+  return(false);
+}
+
+void TransferFile()
+{ //start token has been received
+  uint32_t StartSendMillis = millis();
+
+  if(!SerialAvailabeTimeout(true)) return;
+  uint16_t len = Serial.read();
+  len = len + 256 * Serial.read();
+
+  WriteByte(0xb9); //magic number to start
+ 
+  uint8_t NumPages = len/256+1; //reound up to nearest 256 byte page
+  WriteByte(NumPages);
+  
+  uint16_t bytenum = 0;
+  while(bytenum++ < len)
+  {
+     if(!SerialAvailabeTimeout(true)) return;
+     WriteByte(Serial.read());
+  }  
+  //TODO: Fix this onthe C64 side so  +3 isn't needed...
+  while(bytenum++ < NumPages *256 + 3) WriteByte(0); //pad with zeros, 2 extra bytes to make up for address at start
+  
+  StartSendMillis = millis() - StartSendMillis;
+  Serial.printf("Complete!\nTransfered %d bytes in %dmS\n", NumPages*256, StartSendMillis);
+  uint32_t Rate = NumPages*256*1000*8/StartSendMillis;
+  Serial.printf("  %d bytes per second\n", Rate/8);
+  Serial.printf("  %d bits per second\n", Rate);  
 }
 

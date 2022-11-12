@@ -3,15 +3,19 @@ C# Code: Serial app to select/send prg file
 * 
 
 Arduoino Code: interface from USB serial to C64 parallel via User port
-**  //TODO: Fix this onthe C64 side so  +3 isn't needed... (page bounds)
+**  why +3 instead of +2?
+
 * Checksums- Speed impact? Needed?
 
 C64 code:
 * implement save option 
+* interrupt handler so file can just be downloaded in background (more or less).  
+*     Would allow key entry while waiting for file
+*       combine wait for token and wait for keypress...  Remove rEstart option
 * Timeouts!
-* combine wait for token and wait for keypress...  Remove rEstart option
-** Burn to cart ROM to run easily
+
 * Checksums- Speed impact? Needed?
+* mode to allow passthrough typing from host to C64 (remote basic program entry)
 
 Hardware:
 * compact it, PCB?
@@ -28,6 +32,10 @@ For reference:
 1541 transfer rate: 300 byte/s, raised to 10 Kbyte/s with floppy speeders.
 Currently at ~16 Kbyte/s as of 11/6/22
 
-
+Per https://www.pcbway.com/project/shareproject/C64_EPYX_FASTLOAD_CARTRIDGE_1.html
+Average Loading Speeds Comparison:
+Normal C64 Loading: 500 bytes per second
+Epyx Fastload (1541): 2500 bytes per second
+Epyx Fastload (SD2iEC): 8000 bytes per second
 
 

@@ -36,6 +36,7 @@
             this.btnSendFile = new System.Windows.Forms.Button();
             this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
             this.rtbOutput = new System.Windows.Forms.RichTextBox();
+            this.btnPing = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // btnConnected
@@ -69,14 +70,14 @@
             // 
             // btnSendFile
             // 
-            this.btnSendFile.Enabled = false;
-            this.btnSendFile.Location = new System.Drawing.Point(217, 15);
+            this.btnSendFile.Location = new System.Drawing.Point(277, 15);
             this.btnSendFile.Margin = new System.Windows.Forms.Padding(4);
             this.btnSendFile.Name = "btnSendFile";
             this.btnSendFile.Size = new System.Drawing.Size(120, 28);
             this.btnSendFile.TabIndex = 8;
             this.btnSendFile.Text = "Send File";
             this.btnSendFile.UseVisualStyleBackColor = true;
+            this.btnSendFile.Visible = false;
             this.btnSendFile.Click += new System.EventHandler(this.btnSendFile_Click);
             // 
             // openFileDialog1
@@ -92,12 +93,25 @@
             this.rtbOutput.TabIndex = 9;
             this.rtbOutput.Text = "";
             // 
+            // btnPing
+            // 
+            this.btnPing.Location = new System.Drawing.Point(217, 15);
+            this.btnPing.Margin = new System.Windows.Forms.Padding(4);
+            this.btnPing.Name = "btnPing";
+            this.btnPing.Size = new System.Drawing.Size(52, 28);
+            this.btnPing.TabIndex = 10;
+            this.btnPing.Text = "Ping";
+            this.btnPing.UseVisualStyleBackColor = true;
+            this.btnPing.Visible = false;
+            this.btnPing.Click += new System.EventHandler(this.btnPing_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ActiveBorder;
             this.ClientSize = new System.Drawing.Size(447, 485);
+            this.Controls.Add(this.btnPing);
             this.Controls.Add(this.rtbOutput);
             this.Controls.Add(this.btnSendFile);
             this.Controls.Add(this.tbComPort);
@@ -121,6 +135,7 @@
         private System.Windows.Forms.Button btnSendFile;
         private System.Windows.Forms.OpenFileDialog openFileDialog1;
         private System.Windows.Forms.RichTextBox rtbOutput;
+        private System.Windows.Forms.Button btnPing;
     }
 }
 

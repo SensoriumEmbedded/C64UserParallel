@@ -90,8 +90,7 @@ void TransferFile()
      if(!SerialAvailabeTimeout(true)) return;
      WriteByte(Serial.read());
   }  
-  //TODO: Fix this onthe C64 side so  +3 isn't needed...
-  while(bytenum++ < NumPages *256 + 3) WriteByte(0); //pad with zeros, 2 extra bytes to make up for address at start
+  while(bytenum++ < NumPages *256 + 3) WriteByte(0); //pad with zeros, 2 extra bytes to make up for address at start, and a 3rd for good measure(?)
   
   StartSendMillis = millis() - StartSendMillis;
   Serial.printf("Complete!\nTransfered %d bytes in %dmS\n", NumPages*256, StartSendMillis);

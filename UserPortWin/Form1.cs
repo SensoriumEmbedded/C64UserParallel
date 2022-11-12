@@ -101,7 +101,8 @@ namespace Serial_Logger
                 }
                 btnConnected.Text = "Not Connected";
                 btnConnected.BackColor = Color.Yellow;
-                btnSendFile.Enabled = false;
+                btnSendFile.Visible = false;
+                btnPing.Visible = false;
             }
             else
             {   //connect
@@ -110,7 +111,7 @@ namespace Serial_Logger
                 {
                     rtbOutput.Clear();
                     serialPort1.Open();
-                    serialPort1.Write("x"); //send wrong token to reset
+                    btnPing_Click(null, e);
                 }
                 catch
                 {
@@ -119,10 +120,17 @@ namespace Serial_Logger
                 }
                 btnConnected.Text = "Connected";
                 btnConnected.BackColor = Color.LightGreen;
-                btnSendFile.Enabled = true;
+                btnSendFile.Visible = true;
+                btnPing.Visible = true;
                 USBLost = false;
                 timer1.Enabled = true;
             }
+        }
+
+        private void btnPing_Click(object sender, EventArgs e)
+        {
+            WriteToOutput("Pinging device/C64", Color.DarkRed);
+            serialPort1.Write("x"); //send wrong token to reset
         }
 
         private void btnSendFile_Click(object sender, EventArgs e)
@@ -132,9 +140,7 @@ namespace Serial_Logger
             openFileDialog1.Filter = "PRG files (*.prg)|*.prg";
             if (openFileDialog1.ShowDialog() == DialogResult.Cancel) return;
 
-            //WriteToOutput("Pinging device/C64", Color.Black);
-
-            WriteToOutput("Sending info", Color.Black);
+            WriteToOutput("\nSending file: " + openFileDialog1.FileName, Color.DarkRed);
 
             //open file, get length
             BinaryReader br = new BinaryReader(File.Open(openFileDialog1.FileName, FileMode.Open));

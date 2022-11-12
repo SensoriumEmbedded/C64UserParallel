@@ -21,236 +21,288 @@
     19                             GetIn    = $ffe4 ;GETIN
     20                             
     21                             ;BASIC routines:
-    22                             PrintString = $ab1e
-    23                             
-    24                             ;code locations (saved to prg):
-    25                          	;BasicStart = $0801
-    26                             ;code       = $0810 ;2064
-    27                             code       = $c000  ;49152
-    28                             
-    29                             
-    30                          ;   *=BasicStart
-    31                          ;   ;BASIC SYS header
-    32                          ;   !byte $0b,$08,$01,$00,$9e  ; Line 1 SYS
-    33                          ;   !tx "2064" ;dec address for sys start in text
-    34                          ;   !byte $00,$00,$00
-    35                             
-    36                             *=code  ; Start location for code
-    37                          
-    38                          ;Setup stuff:
-    39  c000 78                    sei
-    40  c001 a92c                  lda #<MsgWelcome
-    41  c003 a0c1                  ldy #>MsgWelcome
-    42  c005 201eab                jsr PrintString   
-    43                             
-    44  c008 a900                  lda #$00
-    45  c00a 8d03dd                sta UserPBDir  ;set all of PB as inputs
-    46                             
-    47  c00d ad02dd                lda UserPADir
-    48  c010 0904                  ora #%00000100 ;set bit 2
-    49  c012 8d02dd                sta UserPADir  ;set PA.2 as output
-    50  c015 ad00dd                lda UserPAIO   
-    51  c018 29fb                  and #%11111011 ;clear bit 2 (not ready)
-    52  c01a 8d00dd                sta UserPAIO   ;set ready output low
-    53                            
-    54                          ;Main routine:
-    55                          Main:
-    56  c01d a94a                  lda #<MsgWaiting
-    57  c01f a0c1                  ldy #>MsgWaiting
-    58  c021 201eab                jsr PrintString   ;display waiting message
-    59                             
-    60  c024 20dfc0                jsr ReceiveByte
-    61  c027 c9b9                  cmp #$B9  ;magic number to start
-    62  c029 f005                  beq cont1
-    63  c02b a901                  lda #$01  ;unexpected start byte
-    64  c02d 4ccbc0                jmp ErrOut
-    65                          cont1:   
-    66                             
-    67  c030 a95f                  lda #<MsgReceiving
-    68  c032 a0c1                  ldy #>MsgReceiving
-    69  c034 201eab                jsr PrintString   ;display receiving message
-    70                             
-    71  c037 20dfc0                jsr ReceiveByte  ;size in 256 byte pages
-    72  c03a 85fd                  sta LastPage     ;store last page hi addr
-    73                            
-    74  c03c 20dfc0                jsr ReceiveByte
-    75  c03f 85fb                  sta PtrAddrLo
-    76  c041 c901                  cmp #$01  ;StartAddr Low, forcing $0801
-    77  c043 f005                  beq cont2
-    78  c045 a902                  lda #$02  ;StartAddr Low
-    79  c047 4ccbc0                jmp ErrOut
-    80                          cont2: 
-    81                            
-    82  c04a 20dfc0                jsr ReceiveByte
-    83  c04d 85fc                  sta PtrAddrHi
-    84  c04f c908                  cmp #$08  ;StartAddr High, forcing $0801
-    85  c051 f005                  beq cont3
-    86  c053 a903                  lda #$03  ;StartAddr High
-    87  c055 4ccbc0                jmp ErrOut
-    88                          cont3:   
-    89                          
-    90  c058 18                    clc
-    91  c059 65fd                  adc LastPage     ;add start address page to size 
-    92  c05b 85fd                  sta LastPage     ;store last page hi addr
-    93                          
-    94  c05d a000                  ldy #$00       ;reset packet index
-    95                          ReadyNext:
-    96  c05f 20dfc0                jsr ReceiveByte
-    97  c062 91fb                  sta (PtrAddrLo), y   ;save byte in mem
-    98  c064 c8                    iny
-    99  c065 d0f8                  bne ReadyNext
-   100                             
-   101  c067 e6fc                  inc PtrAddrHi
-   102  c069 a5fc                  lda PtrAddrHi
-   103  c06b c5fd                  cmp LastPage
-   104  c06d d0f0                  bne ReadyNext
-   105                             
-   106  c06f a96d                  lda #<MsgFinished
-   107  c071 a0c1                  ldy #>MsgFinished
-   108  c073 201eab                jsr PrintString
+    22                             BasicWarmStartVect = $a002
+    23                             PrintString =  $ab1e
+    24                          
+    25                          
+    26                          CompType = 3 ;Choose Compile type:  1=BASIC, 2=UPPER, 3=ROMCRT
+    27                          
+    28                          !if CompType = 1 {
+    29                          ; Load into Basic RAM (0801) directly and run from there 
+    30                          ; no crunch needed 
+    31                          ; 
+    32                             BasicStart = $0801
+    33                             *=BasicStart
+    34                             ;BASIC SYS header
+    35                             !byte $0b,$08,$01,$00,$9e  ; Line 1 SYS
+    36                             !tx "2064" ;dec address for sys start in text
+    37                             !byte $00,$00,$00
+    38                             code = 2064 ;$0810
+    39                          }
+    40                          
+    41                          !if CompType = 2 {
+    42                          ;Option #2
+    43                          ; Load into upper memory, use cruncher to to transfer/call  
+    44                          ; SET cruncherArgs=-x$c000 -c64 -g55 -fshort
+    45                          ;
+    46                             code       = $c000  ;49152
+    47                          }
+    48                          
+    49                          !if CompType = 3 {
+    50                          ;Option #3
+    51                          ; Store in EEPROM/cartridge
+    52                          ; no crunch needed  
+    53                          ; SET build=%filename%.bin
+    54                          ; SET compilerArgs=-r %buildPath%\%compilerReport% --vicelabels %buildPath%\%compilerSymbols% --msvc --color --format plain -v3 --outfile
+    55                          ; burn to eeprom, file won't import to emulator due to 2 missing start addr bytes in file
+    56                          ;
+    57                          * = $9fff                     ; set a byte to cause fill up to -$9fff (or $bfff if 16K)
+    58  9fff 00                    !byte 0
+    59                          ;  jump vectors and autostart key     
+    60                             CartStart = $8000
+    61                             *=CartStart
+    62  8000 0980                  !word Coldstart    ; Cartridge cold-start vector   ;!byte $09, $80 = !word $8009
+    63  8002 1a80                  !word Warmstart    ; Cartridge warm-start vector
+    64  8004 c3c2cd3830            !byte $c3, $c2, $cd, $38, $30    ; CBM8O - Autostart key
+    65                          ;  KERNAL RESET ROUTINE
+    66                          Coldstart:
+    67  8009 78                    sei
+    68  800a 8e16d0                stx $d016            ; Turn on VIC for PAL / NTSC check
+    69  800d 20a3fd                jsr $fda3            ; IOINIT - Init CIA chips
+    70  8010 2050fd                jsr $fd50            ; RANTAM - Clear/test system RAM
+    71  8013 2015fd                jsr $fd15            ; RESTOR - Init KERNAL RAM vectors
+    72  8016 205bff                jsr $ff5b            ; CINT   - Init VIC and screen editor
+    73  8019 58                    cli                  ; Re-enable IRQ interrupts
+    74                          ;  BASIC RESET  Routine
+    75                          Warmstart:
+    76  801a 2053e4                jsr $e453            ; Init BASIC RAM vectors
+    77  801d 20bfe3                jsr $e3bf            ; Main BASIC RAM Init routine
+    78  8020 2022e4                jsr $e422            ; Power-up message / NEW command
+    79  8023 a2fb                  ldx #$fb
+    80  8025 9a                    txs                  ; Reduce stack pointer for BASIC
+    81                             code       = *
+    82                          }
+    83                             
+    84                          
+    85                          ;******************************* Real Code Start ************************************   
+    86                             *=code  ; Start location for code
+    87                             
+    88                          ;   Setup stuff:
+    89                             ;sei
+    90  8026 a900                  lda #$00
+    91  8028 8d03dd                sta UserPBDir  ;set all of PB as inputs
+    92                             
+    93  802b ad02dd                lda UserPADir
+    94  802e 0904                  ora #%00000100 ;set bit 2
+    95  8030 8d02dd                sta UserPADir  ;set PA.2 as output
+    96  8033 ad00dd                lda UserPAIO   
+    97  8036 29fb                  and #%11111011 ;clear bit 2 (not ready)
+    98  8038 8d00dd                sta UserPAIO   ;set ready output low
+    99                            
+   100  803b a958                  lda #<MsgWelcome
+   101  803d a081                  ldy #>MsgWelcome
+   102  803f 201eab                jsr PrintString  
+   103                             
+   104                          ;   *********  Keyboard option list/input wait   ***********
+   105                          KbdOptions:
+   106  8042 a9a3                  lda #<MsgOptions
+   107  8044 a081                  ldy #>MsgOptions
+   108  8046 201eab                jsr PrintString
    109                          
-   110                          ;   *********  end options, What now?   ***********
-   111                          EndOption:
-   112  c076 a977                  lda #<MsgOptions
-   113  c078 a0c1                  ldy #>MsgOptions
-   114  c07a 201eab                jsr PrintString
-   115                          
-   116                          WaitForKey:     ;"Select: Run, Save, rEstart, Disp, or Quit"
-   117  c07d 209fff                jsr ScanKey  ; (since interrupts are disabled)
-   118  c080 20e4ff                jsr GetIn    ;
-   119  c083 f0f8                  beq WaitForKey
-   120                          
-   121  c085 c945                  cmp #'e'  
-   122  c087 f094                  beq Main
-   123                             
-   124  c089 c952                  cmp #'r'  
-   125  c08b d019                  bne notR
-   126                             ;could load keyboard buffer with "run":  https://retro64.altervista.org/blog/commodore-64-keyboard-buffer-tricks-deleting-and-creating-basic-lines-from-basic/
-   127  c08d a952                  lda #'r'
-   128  c08f 8d7702                sta $0277  ;kbd buff 0
-   129  c092 a955                  lda #'u'
-   130  c094 8d7802                sta $0278 ;kbd buff 1
-   131  c097 a94e                  lda #'n'
-   132  c099 8d7902                sta $0279  ;kbd buff 2
-   133  c09c a90d                  lda #13
-   134  c09e 8d7a02                sta $027a  ;kbd buff 3
-   135  c0a1 a904                  lda #4
-   136  c0a3 85c6                  sta $C6  ;# chars in kbd buff (10 max)
-   137  c0a5 60                    rts ;return to BASIC
-   138                           notR:
-   139                          
-   140  c0a6 c951                  cmp #'q'  
-   141  c0a8 d001                  bne notQ
-   142  c0aa 60                    rts ;return to BASIC
-   143                          notQ:
-   144                          
-   145  c0ab c944                  cmp #'d'  
-   146  c0ad d015                  bne notD
-   147  c0af a000                  ldy #$00   ;index
-   148                          DispLoop:     ;first 100 bytes from $0801
-   149  c0b1 b90108                lda $0801, y
-   150  c0b4 20fac0                jsr PrintHexByte
-   151  c0b7 c8                    iny
-   152  c0b8 c064                  cpy #100
-   153  c0ba d0f5                  bne DispLoop
-   154  c0bc a90d                  lda #13
-   155  c0be 20d2ff                jsr SendChar
-   156  c0c1 4c76c0                jmp EndOption
-   157                          notD:
+   110                          WaitForKey:     ;"rEceive, Run, Save, Disp, or Quit..."
+   111  8049 209fff                jsr ScanKey  ; (since interrupts are disabled)
+   112  804c 20e4ff                jsr GetIn    ;
+   113  804f f0f8                  beq WaitForKey
+   114                          
+   115  8051 c945                  cmp #'e'     ;rEceive
+   116  8053 f046                  beq ReceiveFile
+   117                             
+   118  8055 c952                  cmp #'r'   ;load keyboard buffer with "RUN\n" and exit to BASIC
+   119  8057 d01b                  bne notR
+   120                             ;load keyboard buffer with "run\n":  
+   121  8059 a952                  lda #'r'
+   122  805b 8d7702                sta $0277  ;kbd buff 0
+   123  805e a955                  lda #'u'
+   124  8060 8d7802                sta $0278 ;kbd buff 1
+   125  8063 a94e                  lda #'n'
+   126  8065 8d7902                sta $0279  ;kbd buff 2
+   127  8068 a90d                  lda #13
+   128  806a 8d7a02                sta $027a  ;kbd buff 3
+   129  806d a904                  lda #4
+   130  806f 85c6                  sta $C6  ;# chars in kbd buff (10 max)
+   131  8071 6c02a0                jmp (BasicWarmStartVect)
+   132                          notR:
+   133                          
+   134  8074 c951                  cmp #'q'  ;quit to BASIC
+   135  8076 d003                  bne notQ
+   136  8078 6c02a0                jmp (BasicWarmStartVect) 
+   137                          notQ:
+   138                          
+   139  807b c944                  cmp #'d'  ;display start of receved data
+   140  807d d015                  bne notD
+   141  807f a000                  ldy #$00   ;index
+   142                          DispLoop:     ;first 100 bytes from $0801
+   143  8081 b90108                lda $0801, y
+   144  8084 202681                jsr PrintHexByte
+   145  8087 c8                    iny
+   146  8088 c064                  cpy #100
+   147  808a d0f5                  bne DispLoop
+   148  808c a90d                  lda #13
+   149  808e 20d2ff                jsr SendChar
+   150  8091 4c4280                jmp KbdOptions
+   151                          notD:
+   152                          
+   153  8094 c953                  cmp #'s'  ;save file to disk
+   154  8096 d000                  bne notS
+   155                             ;save not yet implemented...
+   156                             
+   157                          notS:
    158                          
-   159  c0c4 c953                  cmp #'s'  
-   160  c0c6 d000                  bne notS
-   161                             ;save not yet implemented...
-   162                             
-   163                          notS:
-   164                          
-   165  c0c8 4c76c0             jmp EndOption   ; try again...  
+   159  8098 4c4280                jmp KbdOptions   ; try again...  
+   160                             
+   161                          
+   162                          ReceiveFile:  ;******************  Receive File from host **************************
+   163  809b a975                  lda #<MsgWaiting
+   164  809d a081                  ldy #>MsgWaiting
+   165  809f 201eab                jsr PrintString   ;display waiting message
    166                             
-   167                          
-   168                             
-   169                          ErrOut:   
-   170                             ;ErrNum stored in acc
-   171  c0cb 48                    pha
-   172  c0cc a924                  lda #<MsgError
-   173  c0ce a0c1                  ldy #>MsgError
-   174  c0d0 201eab                jsr PrintString   
-   175  c0d3 68                    pla
-   176  c0d4 20fac0                jsr PrintHexByte
-   177  c0d7 a90d                  lda #13
-   178  c0d9 20d2ff                jsr SendChar
-   179  c0dc 4c76c0                jmp EndOption
-   180                           
-   181                           
-   182                           
-   183                          ;   *********************** Subroutines *********************** 
-   184                           
-   185                          ReceiveByte:
-   186                             ;Receives one byte from parallel port, then back to not ready
-   187                             ;returns value in acc
-   188                             ; X and Y not touched
-   189  c0df ad00dd                lda UserPAIO   
-   190  c0e2 0904                  ora #%00000100 ;set bit 2 (ready)
-   191  c0e4 8d00dd                sta UserPAIO   ;set ready output high
-   192                          
-   193  c0e7 a910                  lda #%00010000 ;mask bit 4 (Flag pin)
-   194                          lpForFlag:        ;wait for high to low transition on Flag2 pin
-   195  c0e9 2c0ddd                bit UserPICR   ;self clearing on read
-   196  c0ec f0fb                  beq lpForFlag
-   197                          
-   198  c0ee ad00dd                lda UserPAIO   
-   199  c0f1 29fb                  and #%11111011 ;clear bit 2 (not ready)
-   200  c0f3 8d00dd                sta UserPAIO   ;set ready output low
-   201                             
-   202  c0f6 ad01dd                lda UserPBIO  ;grab byte
-   203  c0f9 60                    rts
-   204                           
-   205                          PrintHexByte:
-   206                             ;Print byte value stored in acc in hex
-   207                             ;  2 chars plus 2 spaces
-   208                             ;trashes acc
-   209  c0fa 48                    pha
-   210  c0fb 6a                    ror
-   211  c0fc 6a                    ror
-   212  c0fd 6a                    ror
-   213  c0fe 6a                    ror
-   214  c0ff 2011c1                jsr PrintHexNibble
-   215  c102 68                    pla
-   216  c103 2011c1                jsr PrintHexNibble
-   217  c106 a920                  lda #' '
-   218  c108 20d2ff                jsr SendChar
-   219  c10b a920                  lda #' '
-   220  c10d 20d2ff                jsr SendChar
-   221  c110 60                    rts
-   222                             
-   223                          PrintHexNibble:   
-   224                             ;Print value stored in lower nible acc in hex
-   225                             ;trashes acc
-   226  c111 290f                  and #$0f
-   227  c113 c90a                  cmp #$0a
-   228  c115 1006                  bpl letter 
-   229  c117 18                    clc
-   230  c118 6930                  adc #'0'
-   231  c11a 4c20c1                jmp printret
-   232                          letter:
-   233  c11d 18                    clc
-   234  c11e 6937                  adc #'a'-$0a
-   235                          printret:
-   236  c120 20d2ff                jsr SendChar
-   237  c123 60                    rts
-   238                           
-   239                          ;   *********************** Strings/Messages *********************** 
-   240                          
-   241                          MsgError:
-   242  c124 c552524f52202300      !tx "Error #", 0
-   243                          MsgWelcome:       ;clr screen, wht char, lower case
-   244  c12c 93050ed452415627...   !tx 147, 5, 14, "Trav's para-user app 0.03", 13, 0
-   245                          MsgWaiting:
-   246  c14a d7414954494e4720...   !tx "Waiting for host...", 13, 0
-   247                          MsgReceiving:
-   248  c15f d24543454956494e...   !tx "Receiving...", 13, 0
-   249                          MsgFinished:
-   250  c16d c6494e4953484544...   !tx "Finished", 13, 0
-   251                          MsgOptions:
-   252  c177 0dd2554e2c20d341...   !tx 13, "Run, Save, rEstart, Disp, or Quit...", 13, 0
-   253                             
-   254                             
+   167  80a2 200b81                jsr ReceiveByte
+   168  80a5 c9b9                  cmp #$B9  ;magic number to start
+   169  80a7 f005                  beq cont1
+   170  80a9 a901                  lda #$01  ;unexpected start byte
+   171  80ab 4cf780                jmp ErrOut
+   172                          cont1:   
+   173                             
+   174  80ae a98a                  lda #<MsgReceiving
+   175  80b0 a081                  ldy #>MsgReceiving
+   176  80b2 201eab                jsr PrintString   ;display receiving message
+   177                             
+   178  80b5 200b81                jsr ReceiveByte  ;size in 256 byte pages
+   179  80b8 85fd                  sta LastPage     ;store last page hi addr
+   180                            
+   181  80ba 200b81                jsr ReceiveByte
+   182  80bd 85fb                  sta PtrAddrLo
+   183  80bf c901                  cmp #$01  ;StartAddr Low, verifying $0801
+   184  80c1 f005                  beq cont2
+   185  80c3 a902                  lda #$02  ;StartAddr Low
+   186  80c5 4cf780                jmp ErrOut
+   187                          cont2: 
+   188                            
+   189  80c8 200b81                jsr ReceiveByte
+   190  80cb 85fc                  sta PtrAddrHi
+   191  80cd c908                  cmp #$08  ;StartAddr High, verifying $0801
+   192  80cf f005                  beq cont3
+   193  80d1 a903                  lda #$03  ;StartAddr High
+   194  80d3 4cf780                jmp ErrOut
+   195                          cont3:   
+   196                          
+   197  80d6 18                    clc
+   198  80d7 65fd                  adc LastPage     ;add start address page to size 
+   199  80d9 85fd                  sta LastPage     ;store last page hi addr
+   200                          
+   201  80db a000                  ldy #$00       ;reset packet index
+   202                          ReadyNext:
+   203  80dd 200b81                jsr ReceiveByte
+   204  80e0 91fb                  sta (PtrAddrLo), y   ;save byte in mem
+   205  80e2 c8                    iny
+   206  80e3 d0f8                  bne ReadyNext
+   207                             
+   208  80e5 e6fc                  inc PtrAddrHi
+   209  80e7 a5fc                  lda PtrAddrHi
+   210  80e9 c5fd                  cmp LastPage
+   211  80eb d0f0                  bne ReadyNext
+   212                             
+   213  80ed a998                  lda #<MsgFinished
+   214  80ef a081                  ldy #>MsgFinished
+   215  80f1 201eab                jsr PrintString
+   216                             
+   217  80f4 4c4280                jmp KbdOptions
+   218                          
+   219                             
+   220                          ErrOut:   
+   221                             ;ErrNum stored in acc
+   222  80f7 48                    pha
+   223  80f8 a950                  lda #<MsgError
+   224  80fa a081                  ldy #>MsgError
+   225  80fc 201eab                jsr PrintString   
+   226  80ff 68                    pla
+   227  8100 202681                jsr PrintHexByte
+   228  8103 a90d                  lda #13
+   229  8105 20d2ff                jsr SendChar
+   230  8108 4c4280                jmp KbdOptions
+   231                           
+   232                           
+   233                           
+   234                          ;   *********************** Subroutines *********************** 
+   235                           
+   236                          ReceiveByte:
+   237                             ;Receives one byte from parallel port, then back to not ready
+   238                             ;returns value in acc
+   239                             ; X and Y not touched
+   240  810b ad00dd                lda UserPAIO   
+   241  810e 0904                  ora #%00000100 ;set bit 2 (ready)
+   242  8110 8d00dd                sta UserPAIO   ;set ready output high
+   243                          
+   244  8113 a910                  lda #%00010000 ;mask bit 4 (Flag pin)
+   245                          lpForFlag:        ;wait for high to low transition on Flag2 pin
+   246  8115 2c0ddd                bit UserPICR   ;self clearing on read
+   247  8118 f0fb                  beq lpForFlag
+   248                          
+   249  811a ad00dd                lda UserPAIO   
+   250  811d 29fb                  and #%11111011 ;clear bit 2 (not ready)
+   251  811f 8d00dd                sta UserPAIO   ;set ready output low
+   252                             
+   253  8122 ad01dd                lda UserPBIO  ;grab byte
+   254  8125 60                    rts
+   255                           
+   256                          PrintHexByte:
+   257                             ;Print byte value stored in acc in hex
+   258                             ;  2 chars plus 2 spaces
+   259                             ;trashes acc
+   260  8126 48                    pha
+   261  8127 6a                    ror
+   262  8128 6a                    ror
+   263  8129 6a                    ror
+   264  812a 6a                    ror
+   265  812b 203d81                jsr PrintHexNibble
+   266  812e 68                    pla
+   267  812f 203d81                jsr PrintHexNibble
+   268  8132 a920                  lda #' '
+   269  8134 20d2ff                jsr SendChar
+   270  8137 a920                  lda #' '
+   271  8139 20d2ff                jsr SendChar
+   272  813c 60                    rts
+   273                             
+   274                          PrintHexNibble:   
+   275                             ;Print value stored in lower nible acc in hex
+   276                             ;trashes acc
+   277  813d 290f                  and #$0f
+   278  813f c90a                  cmp #$0a
+   279  8141 1006                  bpl letter 
+   280  8143 18                    clc
+   281  8144 6930                  adc #'0'
+   282  8146 4c4c81                jmp printret
+   283                          letter:
+   284  8149 18                    clc
+   285  814a 6937                  adc #'a'-$0a
+   286                          printret:
+   287  814c 20d2ff                jsr SendChar
+   288  814f 60                    rts
+   289                           
+   290                          ;   *********************** Strings/Messages *********************** 
+   291                          
+   292                          MsgError:
+   293  8150 c552524f52202300      !tx "Error #", 0
+   294                          MsgWelcome:       ;clr screen, wht char, lower case
+   295  8158 050ed45241562753...   !tx 5, 14, "Trav's para-user app 0.04", 13, 0
+   296                             ;!tx 147, 5, 14, "Trav's para-user app 0.03", 13, 0
+   297                          MsgWaiting:
+   298  8175 d7414954494e4720...   !tx "Waiting for host...", 13, 0
+   299                          MsgReceiving:
+   300  818a d24543454956494e...   !tx "Receiving...", 13, 0
+   301                          MsgFinished:
+   302  8198 c6494e4953484544...   !tx "Finished!", 13, 0
+   303                          MsgOptions:
+   304  81a3 0d52c54345495645...   !tx 13, "rEceive, Run, Save, Disp, or Quit...", 13, 0
+   305                             
+   306                             
